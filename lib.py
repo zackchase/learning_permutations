@@ -5,6 +5,8 @@ from theano.ifelse import ifelse
 from theano.sandbox.rng_mrg import MRG_RandomStreams as RandomStreams
 
 
+
+
 def one_hot(string, prepend_eos=False, append_eos=False):
     """
     Take a string and return a one-hot encoding with ASCII
@@ -47,6 +49,16 @@ def softmax(X, temperature=1.0):
     e_x = T.exp((X - X.max(axis=1).dimshuffle(0, 'x'))/temperature)
     return e_x / e_x.sum(axis=1).dimshuffle(0, 'x')
 
+
+        
+def sinkprop(X, num_iters=2):
+    new_X = X
+    ones = T.ones_like(X)
+    for i in range(num_iters):
+        new_X = new_X / T.dot(new_X, ones)
+        new_X = new_X / T.dot(ones, new_X)
+    return new_X
+
 # def softmax(X, temperature):
 #     e_x = T.exp((X-X.max())/temperature)
 #     return e_x / e_x.sum()
@@ -86,6 +98,28 @@ def SGD (cost, params, eta, lambda2 = 0.0):
         updates.append([p, p - eta *( g + lambda2*p)])
 
     return updates
+
+def SGD_positive (cost, params, eta, lambda2=0.0):
+    updates = []
+    grads = T.grad(cost=cost, wrt=params)
+
+    for p,g in zip(params, grads):
+        updates.append([p, rectify(p - eta * (g + lambda2*p))])
+
+    return updates
+
+def SGD_kill_at_zero (cost, params, eta, lambda2=0.0):
+    updates = []
+    grads = T.grad(cost=cost, wrt=params)
+
+    for p,g in zip(params, grads):
+        p_mask = T.neq(p,0.)
+        updates.append([p, (rectify(p - eta * (g + lambda2*p))) * p_mask])
+
+    return updates
+
+
+
 
 
 def momentum(cost, params, caches, eta, rho=.1, clip_at=0.0, scale_norm=0.0, lambda2=0.0):
